@@ -1,0 +1,112 @@
+#!/opt/perl5/bin/perl
+
+use Tk ;
+use ExtUtils::testlib;
+use VcsTools::File;
+use VcsTools::Process ;
+use Getopt::Long ;
+require Tk::ErrorDialog; 
+use Fcntl ;
+use MLDBM qw(DB_File);
+use Tk::Multi::Manager ;
+
+use strict ;
+
+my @allNames=() ;
+my ($hmsBase,$hmsDir) ;
+
+my $base = 'SLEE' ;
+my $hmsHost = 'hptnofs' ;
+
+GetOptions ('name=s@' => \@allNames, 
+            'base=s' => \$hmsBase,
+            'host=s' => \$hmsHost,
+            'hmsDir=s' => \$hmsDir)
+  || die "GetOptions failed\n";
+
+
+@allNames = @ARGV unless scalar @allNames>0 ;
+
+my $home = $ENV{'HOME'} ;
+my $dbDir = $home.'/.hmsWork' ;
+unless (-d $dbDir)
+  {
+    print "May I create the $dbDir directory ? (y/n)\n";
+    my $rep = <STDIN> ;
+    if ($rep =~ /^y/i)
+      {
+        mkdir ($dbDir,0755) or die "Create $dbDir failed\n";
+      }
+    else
+      {
+        $dbDir = $ENV{'PWD'};
+      }
+  }
+
+my $file = $dbDir.'/hmsWork.db';
+
+
+my %dbhash;
+tie %dbhash,  'MLDBM', $file , O_CREAT|O_RDWR, 0640 or die $! ;
+
+require VcsTools::DataSpec::HpTnd ;
+my $ds = new VcsTools::DataSpec::HpTnd ;
+
+my $keyRoot = defined $hmsBase ? $hmsBase : $ENV{'PWD'} ;
+
+$hmsDir = '' if (defined $hmsBase and not defined $hmsDir ) ;
+
+foreach my $name (@allNames)
+  {
+    my $fileO = new VcsTools::File (dbHash => \%dbhash,
+                                    keyRoot => $keyRoot ,
+                                    vcsClass => 'VcsTools::HmsAgent',
+                                    hmsHost => $hmsHost,
+                                    hmsDir => $hmsDir,
+                                    hmsBase => $hmsBase ,
+                                    name => $name,
+                                    workDir => $ENV{'PWD'},
+                                    dataScanner => $ds ,
+                                    fileAgentClass => 'VcsTools::FileAgent',
+                                    processClass => 'VcsTools::Process'
+                                   );
+
+    $fileO -> display();
+  }
+
+MainLoop ; # Tk's
+
+__END__
+
+=head1 NAME
+
+hmsWork - HMS file manager
+
+=head1 SYNOPSIS
+
+ # fully qualified
+ hmsWork -base SLEE [-hmsDir code/toto] -host hptnofs -name titi.c -name foo.h
+  
+ # or
+ hmsWork -base SLEE [-hmsDir code/toto] -host hptnofs titi.c foo.h bar.c
+
+ # if you trust your ,fmrc file
+ hmsWork titi.c foo.h bar.c
+
+=head1 DESCRIPTION
+
+Launch a Tk application to manage your HMS file
+
+=head1 AUTHOR
+
+Dominique Dumont    Dominique_Dumont@grenoble.hp.com
+
+Copyright (c) 1998 Dominique Dumont. All rights reserved.  This
+program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=head1 SEE ALSO
+
+perl(1), VcsTools::File(3),  VcsTools::History(3)
+
+=cut
